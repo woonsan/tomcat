@@ -82,11 +82,7 @@ public class HealthCheckValve extends ValveBase {
     @Override
     protected synchronized void startInternal() throws LifecycleException {
         super.startInternal();
-        if (getContainer() instanceof Context) {
-            context = true;
-        } else {
-            context = false;
-        }
+        context = (getContainer() instanceof Context);
     }
 
     @Override
@@ -96,7 +92,7 @@ public class HealthCheckValve extends ValveBase {
                 context ? request.getRequestPathMB() : request.getDecodedRequestURIMB();
         if (urlMB.equals(path)) {
             response.setContentType("application/json");
-            if (!checkContainersAvailable || (checkContainersAvailable && isAvailable(getContainer()))) {
+            if (!checkContainersAvailable || isAvailable(getContainer())) {
                 response.getOutputStream().print(UP);
             } else {
                 response.setStatus(HttpServletResponse.SC_SERVICE_UNAVAILABLE);

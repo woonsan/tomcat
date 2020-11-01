@@ -27,6 +27,7 @@ import org.apache.coyote.ContainerThreadMarker;
 import org.apache.coyote.ContinueResponseTiming;
 import org.apache.coyote.ErrorState;
 import org.apache.coyote.Request;
+import org.apache.coyote.RequestGroupInfo;
 import org.apache.coyote.Response;
 import org.apache.coyote.http11.filters.GzipOutputFilter;
 import org.apache.juli.logging.Log;
@@ -371,6 +372,15 @@ class StreamProcessor extends AbstractProcessor {
     @Override
     public final void recycle() {
         // StreamProcessor instances are not re-used.
+
+        // Calling removeRequestProcessor even though the RequestProcesser was
+        // never added will add the values from the RequestProcessor to the
+        // running total for the GlobalRequestProcessor
+        RequestGroupInfo global = handler.getProtocol().getGlobal();
+        if (global != null) {
+            global.removeRequestProcessor(request.getRequestProcessor());
+        }
+
         // Clear fields that can be cleared to aid GC and trigger NPEs if this
         // is reused
         setSocketWrapper(null);

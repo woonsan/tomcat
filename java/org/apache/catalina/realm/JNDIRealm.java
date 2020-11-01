@@ -490,6 +490,14 @@ public class JNDIRealm extends RealmBase {
     protected int connectionPoolSize = 1;
 
 
+    /**
+     * Whether to use context ClassLoader or default ClassLoader.
+     * True means use context ClassLoader, and True is the default
+     * value.
+     */
+    protected boolean useContextClassLoader = true;
+
+
     // ------------------------------------------------------------- Properties
 
     public boolean getForceDnHexEscape() {
@@ -1246,6 +1254,26 @@ public class JNDIRealm extends RealmBase {
         return clazz.getConstructor().newInstance();
     }
 
+    /**
+     * Sets whether to use the context or default ClassLoader.
+     * True means use context ClassLoader.
+     *
+     * @param useContext True means use context ClassLoader
+     */
+    public void setUseContextClassLoader(boolean useContext) {
+        useContextClassLoader = useContext;
+    }
+
+    /**
+     * Returns whether to use the context or default ClassLoader.
+     * True means to use the context ClassLoader.
+     *
+     * @return The value of useContextClassLoader
+     */
+    public boolean isUseContextClassLoader() {
+        return useContextClassLoader;
+    }
+
     // ---------------------------------------------------------- Realm Methods
 
     /**
@@ -1301,6 +1329,7 @@ public class JNDIRealm extends RealmBase {
 
                 // close the connection so we know it will be reopened.
                 close(connection);
+                closePooledConnections();
 
                 // open a new directory context.
                 connection = get();
@@ -2190,6 +2219,20 @@ public class JNDIRealm extends RealmBase {
 
     }
 
+    /**
+     * Close all pooled connections.
+     */
+    protected void closePooledConnections() {
+        if (connectionPool != null) {
+            // Close any pooled connections as they might be bad as well
+            synchronized (connectionPool) {
+                JNDIConnection connection = null;
+                while ((connection = connectionPool.pop()) != null) {
+                    close(connection);
+                }
+            }
+        }
+    }
 
     /**
      * Get the password for the specified user.
@@ -2203,8 +2246,36 @@ public class JNDIRealm extends RealmBase {
             return null;
         }
 
+        JNDIConnection connection = null;
+        User user = null;
         try {
-            User user = getUser(get(), username, null);
+
+            // Ensure that we have a directory context available
+            connection = get();
+
+            // Occasionally the directory context will timeout.  Try one more
+            // time before giving up.
+            try {
+                user = getUser(connection, username, null);
+            } catch (NullPointerException | NamingException e) {
+                // log the exception so we know it's there.
+                containerLog.info(sm.getString("jndiRealm.exception.retry"), e);
+
+                // close the connection so we know it will be reopened.
+                close(connection);
+                closePooledConnections();
+
+                // open a new directory context.
+                connection = get();
+
+                // Try the authentication again.
+                user = getUser(connection, username, null);
+            }
+
+
+            // Release this context
+            release(connection);
+
             if (user == null) {
                 // User should be found...
                 return null;
@@ -2212,7 +2283,10 @@ public class JNDIRealm extends RealmBase {
                 // ... and have a password
                 return user.getPassword();
             }
+
         } catch (NamingException e) {
+            // Log the problem for posterity
+            containerLog.error(sm.getString("jndiRealm.exception"), e);
             return null;
         }
 
@@ -2269,6 +2343,7 @@ public class JNDIRealm extends RealmBase {
 
                 // close the connection so we know it will be reopened.
                 close(connection);
+                closePooledConnections();
 
                 // open a new directory context.
                 connection = get();
@@ -2439,7 +2514,12 @@ public class JNDIRealm extends RealmBase {
      * @throws NamingException if a directory server error occurs
      */
     protected void open(JNDIConnection connection) throws NamingException {
+        ClassLoader ocl = null;
         try {
+            if (!isUseContextClassLoader()) {
+                ocl = Thread.currentThread().getContextClassLoader();
+                Thread.currentThread().setContextClassLoader(this.getClass().getClassLoader());
+            }
             // Ensure that we have a directory context available
             connection.context = createDirContext(getDirectoryContextEnvironment());
         } catch (Exception e) {
@@ -2456,6 +2536,9 @@ public class JNDIRealm extends RealmBase {
             // reset it in case the connection times out.
             // the primary may come back.
             connectionAttempt = 0;
+            if (!isUseContextClassLoader()) {
+                Thread.currentThread().setContextClassLoader(ocl);
+            }
         }
     }
 
@@ -2667,10 +2750,7 @@ public class JNDIRealm extends RealmBase {
             singleConnectionLock.lock();
             close(singleConnection);
         } else {
-            JNDIConnection connection = null;
-            while ((connection = connectionPool.pop()) != null) {
-                close(connection);
-            }
+            closePooledConnections();
             connectionPool = null;
         }
     }

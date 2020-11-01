@@ -44,7 +44,133 @@
   They eventually become mixed with the numbered issues (i.e., numbered
   issues do not "pop up" wrt. others).
 -->
-<section name="Tomcat 10.0.0-M9 (markt)" rtext="in development">
+<section name="Tomcat 10.0.0-M10 (markt)" rtext="in development">
+  <subsection name="Catalina">
+    <changelog>
+      <fix>
+        <bug>55559</bug>: Add a new attribute, <code>localJndiResource</code>,
+        that allows a UserDatabaseRealm to obtain a UserDatabase instance from
+        the local (web application) JNDI context rather than the global JNDI
+        context. This option is only useful when the Realm is defined on the
+        Context. (markt)
+      </fix>
+      <fix>
+        <bug>64805</bug>: Correct imports used by <code>JMXProxyServlet</code>.
+        (markt)
+      </fix>
+      <fix>
+        Fix JNDIRealm pooling problems retrying on another bad connection. Any
+        retries are made on a new connection, just like with the single
+        connection scenario. Also remove all connections from the pool after
+        an error. (remm)
+      </fix>
+      <fix>
+        Remove the entry for <code>org.apache.tomcat.util.descriptor.tld.LocalStrings</code>
+        from tomcat-embed-core's GraalVM tomcat-resource.json. It no more part of the jar
+        since <a href="https://github.com/apache/tomcat/commit/3815b4951eb3acd30a0b77aafa75fbdb928d5782">
+        Fix unwanted JPMS dependency of embed-core on embed-jasper</a>. (mgrigorov)
+      </fix>
+      <fix>
+        Add org.apache.coyote.http11.Http11Nio2Protocol to the list of classes which could be instantiated
+        via reflection in GraalVM. (mgrigorov)
+      </fix>
+      <add>
+        Add <code>JsonErrorReportValve</code> that extends the
+        <code>ErrorReportValve</code> that returns  response as JSON instead of
+        HTML. (kfujino)
+      </add>
+      <add>
+        Add GraalVM config for Tomcat JNI related classes. This makes it possible to use the APR
+        protocol in GraalVM native images. (mgrigorov)
+      </add>
+      <fix>
+        JNDIRealm connections should only be created with the container
+        classloader as the thread context classloader, just like for the JAAS
+        realm. (remm)
+      </fix>
+    </changelog>
+  </subsection>
+  <subsection name="Coyote">
+    <changelog>
+      <fix>
+        Refactor the HTTP/2 window update handling for padding in data frames to
+        ensure that the connection window is correctly updated after a data
+        frame with zero length padding is received. (markt)
+      </fix>
+      <fix>
+        Fix processing of URIs with %nn encoded solidus characters when
+        <code>encodedSolidusHandling</code> was set to <code>passthrough</code>
+        and the encoded solidus was preceeded by other %nn encoded characters.
+        Based on a pull request by willmeck. (markt)
+      </fix>
+      <fix>
+        <bug>63362</bug>: Add collection of statistics for HTTP/2, WebSocket and
+        connections upgraded via the HTTP upgrade mechanism. (markt)
+      </fix>
+      <fix>
+        Restore exception catch around Poller.events, as it would cause
+        the NIO poller thread to exit. This is a regression caused when
+        the Poller.events method was refactored. (remm)
+      </fix>
+      <add>
+        Provide messages for some <code>SocketTimeoutException</code> instances
+        that did not have one. (markt)
+      </add>
+      <fix>
+        Avoid most of the thread pool use during NIO2 socket accept. Patch
+        submitted by Anil Gursel. (remm)
+      </fix>
+    </changelog>
+  </subsection>
+  <subsection name="Jasper">
+    <changelog>
+      <fix>
+        <bug>64784</bug>: Don't include the time the Java file was generated as
+        a comment when generating Java files for JSPs and/or tags if the Java
+        file was created during pre-compilation. This is to aid repeatable
+        builds. (markt)
+      </fix>
+      <fix>
+        <bug>64794</bug>: Security exception reading system property on
+        JspRuntimeLibrary use. (remm)
+      </fix>
+      <add>
+        Add support for specifying Java 16 (with the value <code>16</code>) as
+        the compiler source and/or compiler target for JSP compilation. If used
+        with an ECJ version that does not support these values, a warning will
+        be logged and the latest supported version will used. (markt)
+      </add>
+      <update>
+        Update to the Eclipse JDT compiler 4.17. (markt)
+      </update>
+    </changelog>
+  </subsection>
+  <subsection name="Web applications">
+    <changelog>
+      <fix>
+        <bug>64799</bug>: Added missing resources to host-manager web app. (isapir)
+      </fix>
+      <fix>
+        <bug>64797</bug>: Align manager.xml template file in Host-Manager with
+        context.xml of real Manager web application. (isapir)
+      </fix>
+    </changelog>
+  </subsection>
+  <subsection name="Other">
+    <changelog>
+      <add>
+        Improvements to French translations. (remm)
+      </add>
+      <add>
+        Improvements to Korean translations. (woonsan)
+      </add>
+      <add>
+        Improvements to Russian translations. Provided by Azat. (markt)
+      </add>
+    </changelog>
+  </subsection>
+</section>
+<section name="Tomcat 10.0.0-M9 (markt)" rtext="2020-10-09">
   <subsection name="Catalina">
     <changelog>
       <update>
@@ -76,7 +202,7 @@
         JARs may be used with JPMS. (markt)
       </fix>
       <fix>
-        When performing an incremental build, ensure bdn does not create
+        When performing an incremental build, ensure bnd does not create
         unwanted JPMS dependencies between embedded JARs. (markt)
       </fix>
       <update>
@@ -402,8 +528,9 @@
         provided by Ronny Perinke. (markt)
       </fix>
       <fix>
-        Fix a potential issue where the write lock for a WebSocket connection
-        may not be released if an exception occurs during the write. (markt)
+        <bug>64848</bug>: Fix a potential issue where the write lock for a
+        WebSocket connection may not be released if an exception occurs during
+        the write. (markt)
       </fix>
       <add>
         <bug>64644</bug>: Add support for a read idle timeout and a write idle
