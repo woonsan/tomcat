@@ -40,7 +40,6 @@ import jakarta.servlet.http.HttpUpgradeHandler;
 import jakarta.servlet.http.WebConnection;
 
 import org.apache.coyote.http11.upgrade.InternalHttpUpgradeHandler;
-import org.apache.coyote.http11.upgrade.UpgradeProcessorInternal;
 import org.apache.juli.logging.Log;
 import org.apache.tomcat.InstanceManager;
 import org.apache.tomcat.util.ExceptionUtils;
@@ -88,7 +87,7 @@ public abstract class AbstractProtocol<S> implements ProtocolHandler,
 
 
     private final Set<Processor> waitingProcessors =
-            Collections.newSetFromMap(new ConcurrentHashMap<Processor, Boolean>());
+            Collections.newSetFromMap(new ConcurrentHashMap<>());
 
     /**
      * Controller for the timeout scheduling.
@@ -385,6 +384,15 @@ public abstract class AbstractProtocol<S> implements ProtocolHandler,
     }
 
 
+    /*
+     * Primarily for debugging and testing. Could be exposed via JMX if
+     * considered useful.
+     */
+    public int getWaitingProcessorCount() {
+        return waitingProcessors.size();
+    }
+
+
     // ----------------------------------------------- Accessors for sub-classes
 
     protected AbstractEndpoint<S,?> getEndpoint() {
@@ -571,12 +579,9 @@ public abstract class AbstractProtocol<S> implements ProtocolHandler,
 
         endpoint.start();
         monitorFuture = getUtilityExecutor().scheduleWithFixedDelay(
-                new Runnable() {
-                    @Override
-                    public void run() {
-                        if (!isPaused()) {
-                            startAsyncTimeout();
-                        }
+                () -> {
+                    if (!isPaused()) {
+                        startAsyncTimeout();
                     }
                 }, 0, 60, TimeUnit.SECONDS);
     }
@@ -598,13 +603,10 @@ public abstract class AbstractProtocol<S> implements ProtocolHandler,
                 }
             }
             timeoutFuture = getUtilityExecutor().scheduleAtFixedRate(
-                    new Runnable() {
-                        @Override
-                        public void run() {
-                            long now = System.currentTimeMillis();
-                            for (Processor processor : waitingProcessors) {
-                                processor.timeoutAsync(now);
-                            }
+                    () -> {
+                        long now = System.currentTimeMillis();
+                        for (Processor processor : waitingProcessors) {
+                            processor.timeoutAsync(now);
                         }
                     }, 1, 1, TimeUnit.SECONDS);
         }
@@ -700,6 +702,14 @@ public abstract class AbstractProtocol<S> implements ProtocolHandler,
     @Override
     public void closeServerSocketGraceful() {
         endpoint.closeServerSocketGraceful();
+    }
+
+
+    @Override
+    public long awaitConnectionsClose(long waitMillis) {
+        getLog().info(sm.getString("abstractProtocol.closeConnectionsAwait",
+                Long.valueOf(waitMillis), getName()));
+        return endpoint.awaitConnectionsClose(waitMillis);
     }
 
 
@@ -1038,15 +1048,14 @@ public abstract class AbstractProtocol<S> implements ProtocolHandler,
             if (processor != null) {
                 processor.recycle();
                 if (processor.isUpgrade()) {
-                    // UpgradeProcessorInternal instances can utilise AsyncIO.
-                    // If they do, the processor will not pass through the
-                    // process() method and be removed from waitingProcessors
-                    // so do that here.
-                    if (processor instanceof UpgradeProcessorInternal) {
-                        if (((UpgradeProcessorInternal) processor).hasAsyncIO()) {
-                            getProtocol().removeWaitingProcessor(processor);
-                        }
-                    }
+                    // While UpgradeProcessor instances should not normally be
+                    // present in waitingProcessors there are various scenarios
+                    // where this can happen. E.g.:
+                    // - when AsyncIO is used
+                    // - WebSocket I/O error on non-container thread
+                    // Err on the side of caution and always try and remove any
+                    // UpgradeProcessor instances from waitingProcessors
+                    getProtocol().removeWaitingProcessor(processor);
                 } else {
                     // After recycling, only instances of UpgradeProcessorBase
                     // will return true for isUpgrade().

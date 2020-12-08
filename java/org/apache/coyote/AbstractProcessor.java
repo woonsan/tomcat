@@ -99,6 +99,9 @@ public abstract class AbstractProcessor extends AbstractProcessorLight implement
      * @param t The error which occurred
      */
     protected void setErrorState(ErrorState errorState, Throwable t) {
+        if (getLog().isDebugEnabled()) {
+            getLog().debug(sm.getString("abstractProcessor.setErrorState", errorState), t);
+        }
         // Use the return value to avoid processing more than one async error
         // in a single async cycle.
         boolean setError = response.setError();
@@ -791,6 +794,14 @@ public abstract class AbstractProcessor extends AbstractProcessorLight implement
                 sslO = sslSupport.getProtocol();
                 if (sslO != null) {
                     request.setAttribute(SSLSupport.PROTOCOL_VERSION_KEY, sslO);
+                }
+                sslO = sslSupport.getRequestedProtocols();
+                if (sslO != null) {
+                    request.setAttribute(SSLSupport.REQUESTED_PROTOCOL_VERSIONS_KEY, sslO);
+                }
+                sslO = sslSupport.getRequestedCiphers();
+                if (sslO != null) {
+                    request.setAttribute(SSLSupport.REQUESTED_CIPHERS_KEY, sslO);
                 }
                 request.setAttribute(SSLSupport.SESSION_MGR, sslSupport);
             }

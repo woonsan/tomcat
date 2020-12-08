@@ -23,8 +23,6 @@ import java.util.Map;
 import java.util.Queue;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
-import java.util.logging.Level;
-import java.util.logging.LogManager;
 
 import jakarta.websocket.ClientEndpointConfig;
 import jakarta.websocket.ClientEndpointConfig.Configurator;
@@ -57,7 +55,7 @@ public class TestWebSocketFrameClient extends WebSocketBaseTest {
         Tomcat tomcat = getTomcatInstance();
         // No file system docBase required
         Context ctx = tomcat.addContext("", null);
-        ctx.addApplicationListener(TesterFirehoseServer.Config.class.getName());
+        ctx.addApplicationListener(TesterFirehoseServer.ConfigInline.class.getName());
         Tomcat.addServlet(ctx, "default", new DefaultServlet());
         ctx.addServletMappingDecoded("/", "default");
 
@@ -80,7 +78,7 @@ public class TestWebSocketFrameClient extends WebSocketBaseTest {
                 TesterProgrammaticEndpoint.class,
                 clientEndpointConfig,
                 new URI("ws://localhost:" + getPort() +
-                        TesterFirehoseServer.Config.PATH));
+                        TesterFirehoseServer.PATH));
         CountDownLatch latch =
                 new CountDownLatch(TesterFirehoseServer.MESSAGE_COUNT);
         BasicText handler = new BasicText(latch);
@@ -117,20 +115,11 @@ public class TestWebSocketFrameClient extends WebSocketBaseTest {
 
         tomcat.start();
 
-        LogManager.getLogManager().getLogger("org.apache.coyote").setLevel(Level.ALL);
-        LogManager.getLogManager().getLogger("org.apache.tomcat.websocket").setLevel(Level.ALL);
-        LogManager.getLogManager().getLogger("org.apache.tomcat.util.net").setLevel(Level.ALL);
-        try {
-            echoTester("",null);
-            echoTester("/",null);
-            // This will trigger a redirect so there will be 5 requests logged
-            echoTester("/foo",null);
-            echoTester("/foo/",null);
-        } finally {
-            LogManager.getLogManager().getLogger("org.apache.coyote").setLevel(Level.INFO);
-            LogManager.getLogManager().getLogger("org.apache.tomcat.websocket.WsWebSocketContainer").setLevel(Level.INFO);
-            LogManager.getLogManager().getLogger("org.apache.tomcat.util.net").setLevel(Level.INFO);
-        }
+        echoTester("",null);
+        echoTester("/",null);
+        // This will trigger a redirect so there will be 5 requests logged
+        echoTester("/foo",null);
+        echoTester("/foo/",null);
     }
 
     public void echoTester(String path, ClientEndpointConfig clientEndpointConfig)
@@ -198,7 +187,6 @@ public class TestWebSocketFrameClient extends WebSocketBaseTest {
         clientEndpointConfig.getUserProperties().put(Constants.WS_AUTHENTICATION_PASSWORD, utf8Pass);
 
         echoTester(URI_PROTECTED, clientEndpointConfig);
-
     }
 
     @Test
@@ -235,7 +223,5 @@ public class TestWebSocketFrameClient extends WebSocketBaseTest {
         clientEndpointConfig.getUserProperties().put(Constants.WS_AUTHENTICATION_PASSWORD,PWD);
 
         echoTester(URI_PROTECTED, clientEndpointConfig);
-
     }
-
 }
