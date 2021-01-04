@@ -347,22 +347,27 @@ public abstract class AbstractProtocol<S> implements ProtocolHandler,
     private String getNameInternal() {
         StringBuilder name = new StringBuilder(getNamePrefix());
         name.append('-');
-        if (getAddress() != null) {
-            name.append(getAddress().getHostAddress());
-            name.append('-');
-        }
-        int port = getPortWithOffset();
-        if (port == 0) {
-            // Auto binding is in use. Check if port is known
-            name.append("auto-");
-            name.append(getNameIndex());
-            port = getLocalPort();
-            if (port != -1) {
+        String path = getProperty("unixDomainSocketPath");
+        if (path != null) {
+            name.append(path);
+        } else {
+            if (getAddress() != null) {
+                name.append(getAddress().getHostAddress());
                 name.append('-');
+            }
+            int port = getPortWithOffset();
+            if (port == 0) {
+                // Auto binding is in use. Check if port is known
+                name.append("auto-");
+                name.append(getNameIndex());
+                port = getLocalPort();
+                if (port != -1) {
+                    name.append('-');
+                    name.append(port);
+                }
+            } else {
                 name.append(port);
             }
-        } else {
-            name.append(port);
         }
         return name.toString();
     }
@@ -593,7 +598,7 @@ public abstract class AbstractProtocol<S> implements ProtocolHandler,
      * is triggered independently of the socket read/write timeouts.
      */
     protected void startAsyncTimeout() {
-        if (timeoutFuture == null || (timeoutFuture != null && timeoutFuture.isDone())) {
+        if (timeoutFuture == null || timeoutFuture.isDone()) {
             if (timeoutFuture != null && timeoutFuture.isDone()) {
                 // There was an error executing the scheduled task, get it and log it
                 try {
