@@ -176,6 +176,18 @@ public class NioEndpoint extends AbstractJsseEndpoint<NioChannel,SocketChannel> 
     }
 
 
+    @Override
+    public String getId() {
+        if (getUseInheritedChannel()) {
+            return "JVMInheritedChannel";
+        } else if (getUnixDomainSocketPath() != null) {
+            return getUnixDomainSocketPath();
+        } else {
+            return null;
+        }
+    }
+
+
     // ----------------------------------------------- Public Lifecycle Methods
 
     /**
@@ -208,16 +220,20 @@ public class NioEndpoint extends AbstractJsseEndpoint<NioChannel,SocketChannel> 
             serverSock = JreCompat.getInstance().openUnixDomainServerSocketChannel();
             serverSock.bind(sa, getAcceptCount());
             if (getUnixDomainSocketPathPermissions() != null) {
-                FileAttribute<Set<PosixFilePermission>> attrs =
-                        PosixFilePermissions.asFileAttribute(PosixFilePermissions.fromString(getUnixDomainSocketPathPermissions()));
                 Path path = Paths.get(getUnixDomainSocketPath());
-                if (attrs != null) {
+                Set<PosixFilePermission> permissions =
+                        PosixFilePermissions.fromString(getUnixDomainSocketPathPermissions());
+                if (path.getFileSystem().supportedFileAttributeViews().contains("posix")) {
+                    FileAttribute<Set<PosixFilePermission>> attrs = PosixFilePermissions.asFileAttribute(permissions);
                     Files.setAttribute(path, attrs.name(), attrs.value());
                 } else {
-                    java.io.File file = path.toFile();
-                    file.setReadable(true, false);
-                    file.setWritable(true, false);
-                    file.setExecutable(false, false);
+                    java.io.File file = Paths.get(getUnixDomainSocketPath()).toFile();
+                    if (permissions.contains(PosixFilePermission.OTHERS_READ) && !file.setReadable(true, false)) {
+                        log.warn(sm.getString("endpoint.nio.perms.readFail", path));
+                    }
+                    if (permissions.contains(PosixFilePermission.OTHERS_WRITE) && !file.setWritable(true, false)) {
+                        log.warn(sm.getString("endpoint.nio.perms.writeFail", path));
+                    }
                 }
             }
         } else {
@@ -344,11 +360,17 @@ public class NioEndpoint extends AbstractJsseEndpoint<NioChannel,SocketChannel> 
 
     @Override
     protected void doCloseServerSocket() throws IOException {
-        if (!getUseInheritedChannel() && serverSock != null) {
-            // Close server socket
-            serverSock.close();
+        try {
+            if (!getUseInheritedChannel() && serverSock != null) {
+                // Close server socket
+                serverSock.close();
+            }
+            serverSock = null;
+        } finally {
+            if (getUnixDomainSocketPath() != null && getBindState().wasBound()) {
+                Files.delete(Paths.get(getUnixDomainSocketPath()));
+            }
         }
-        serverSock = null;
     }
 
 

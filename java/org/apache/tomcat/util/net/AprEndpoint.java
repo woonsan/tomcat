@@ -23,6 +23,12 @@ import java.net.SocketTimeoutException;
 import java.nio.ByteBuffer;
 import java.nio.channels.CompletionHandler;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.nio.file.attribute.FileAttribute;
+import java.nio.file.attribute.PosixFilePermission;
+import java.nio.file.attribute.PosixFilePermissions;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Map;
@@ -248,6 +254,26 @@ public class AprEndpoint extends AbstractEndpoint<Long,Long> implements SNICallB
     }
 
 
+     /**
+      * Path for the Unix Domain Socket, used to create the socket address.
+      */
+     private String unixDomainSocketPath = null;
+     public String getUnixDomainSocketPath() { return this.unixDomainSocketPath; }
+     public void setUnixDomainSocketPath(String unixDomainSocketPath) {
+         this.unixDomainSocketPath = unixDomainSocketPath;
+     }
+
+
+     /**
+      * Permissions which will be set on the Unix Domain Socket if it is created.
+      */
+     private String unixDomainSocketPathPermissions = null;
+     public String getUnixDomainSocketPathPermissions() { return this.unixDomainSocketPathPermissions; }
+     public void setUnixDomainSocketPathPermissions(String unixDomainSocketPathPermissions) {
+         this.unixDomainSocketPathPermissions = unixDomainSocketPathPermissions;
+     }
+
+
     // --------------------------------------------------------- Public Methods
 
     /**
@@ -278,6 +304,16 @@ public class AprEndpoint extends AbstractEndpoint<Long,Long> implements SNICallB
     }
 
 
+    @Override
+    public String getId() {
+        if (getUnixDomainSocketPath() != null) {
+            return getUnixDomainSocketPath();
+        } else {
+            return null;
+        }
+    }
+
+
     // ----------------------------------------------- Public Lifecycle Methods
 
 
@@ -286,6 +322,9 @@ public class AprEndpoint extends AbstractEndpoint<Long,Long> implements SNICallB
      */
     @Override
     public void bind() throws Exception {
+
+        int family;
+        String hostname = null;
 
         // Create the root APR memory pool
         try {
@@ -296,52 +335,83 @@ public class AprEndpoint extends AbstractEndpoint<Long,Long> implements SNICallB
 
         // Create the pool for the server socket
         serverSockPool = Pool.create(rootPool);
+
         // Create the APR address that will be bound
-        String addressStr = null;
-        if (getAddress() != null) {
-            addressStr = getAddress().getHostAddress();
+        if (getUnixDomainSocketPath() != null) {
+            if (Library.APR_HAVE_UNIX) {
+                hostname = getUnixDomainSocketPath();
+                family = Socket.APR_UNIX;
+            }
+            else {
+                throw new Exception(sm.getString("endpoint.init.unixnotavail"));
+            }
         }
-        int family = Socket.APR_INET;
-        if (Library.APR_HAVE_IPV6) {
-            if (addressStr == null) {
-                if (!OS.IS_BSD) {
+        else {
+
+            if (getAddress() != null) {
+                hostname = getAddress().getHostAddress();
+            }
+            family = Socket.APR_INET;
+            if (Library.APR_HAVE_IPV6) {
+                if (hostname == null) {
+                    if (!OS.IS_BSD) {
+                        family = Socket.APR_UNSPEC;
+                    }
+                } else if (hostname.indexOf(':') >= 0) {
                     family = Socket.APR_UNSPEC;
                 }
-            } else if (addressStr.indexOf(':') >= 0) {
-                family = Socket.APR_UNSPEC;
             }
-         }
+        }
 
-        long inetAddress = Address.info(addressStr, family, getPortWithOffset(), 0, rootPool);
+        long sockAddress = Address.info(hostname, family, getPortWithOffset(), 0, rootPool);
+
         // Create the APR server socket
-        serverSock = Socket.create(Address.getInfo(inetAddress).family,
+        if (family == Socket.APR_UNIX) {
+            serverSock = Socket.create(family, Socket.SOCK_STREAM, 0, rootPool);
+        }
+        else {
+            serverSock = Socket.create(Address.getInfo(sockAddress).family,
                 Socket.SOCK_STREAM,
                 Socket.APR_PROTO_TCP, rootPool);
-        if (OS.IS_UNIX) {
-            Socket.optSet(serverSock, Socket.APR_SO_REUSEADDR, 1);
-        }
-        if (Library.APR_HAVE_IPV6) {
-            if (getIpv6v6only()) {
-                Socket.optSet(serverSock, Socket.APR_IPV6_V6ONLY, 1);
-            } else {
-                Socket.optSet(serverSock, Socket.APR_IPV6_V6ONLY, 0);
+            if (OS.IS_UNIX) {
+                Socket.optSet(serverSock, Socket.APR_SO_REUSEADDR, 1);
             }
+            if (Library.APR_HAVE_IPV6) {
+                if (getIpv6v6only()) {
+                    Socket.optSet(serverSock, Socket.APR_IPV6_V6ONLY, 1);
+                } else {
+                    Socket.optSet(serverSock, Socket.APR_IPV6_V6ONLY, 0);
+                }
+            }
+            // Deal with the firewalls that tend to drop the inactive sockets
+            Socket.optSet(serverSock, Socket.APR_SO_KEEPALIVE, 1);
         }
-        // Deal with the firewalls that tend to drop the inactive sockets
-        Socket.optSet(serverSock, Socket.APR_SO_KEEPALIVE, 1);
+
         // Bind the server socket
-        int ret = Socket.bind(serverSock, inetAddress);
+        int ret = Socket.bind(serverSock, sockAddress);
         if (ret != 0) {
             throw new Exception(sm.getString("endpoint.init.bind", "" + ret, Error.strerror(ret)));
         }
+
         // Start listening on the server socket
         ret = Socket.listen(serverSock, getAcceptCount());
         if (ret != 0) {
             throw new Exception(sm.getString("endpoint.init.listen", "" + ret, Error.strerror(ret)));
         }
-        if (OS.IS_WIN32 || OS.IS_WIN64) {
-            // On Windows set the reuseaddr flag after the bind/listen
-            Socket.optSet(serverSock, Socket.APR_SO_REUSEADDR, 1);
+
+        if (family == Socket.APR_UNIX) {
+            if (getUnixDomainSocketPathPermissions() != null) {
+                FileAttribute<Set<PosixFilePermission>> attrs =
+                         PosixFilePermissions.asFileAttribute(PosixFilePermissions.fromString(
+                                 getUnixDomainSocketPathPermissions()));
+                Path path = Paths.get(getUnixDomainSocketPath());
+                Files.setAttribute(path, attrs.name(), attrs.value());
+            }
+        } else {
+            if (OS.IS_WIN32 || OS.IS_WIN64) {
+                // On Windows set the reuseaddr flag after the bind/listen
+                Socket.optSet(serverSock, Socket.APR_SO_REUSEADDR, 1);
+            }
         }
 
         // Enable Sendfile by default if it has not been configured but usage on
@@ -2235,6 +2305,7 @@ public class AprEndpoint extends AbstractEndpoint<Long,Long> implements SNICallB
                 log.debug("Calling [" + getEndpoint() + "].closeSocket([" + this + "])");
             }
             getEndpoint().connections.remove(getSocket());
+            socketBufferHandler.free();
             socketBufferHandler = SocketBufferHandler.EMPTY;
             nonBlockingWriteBuffer.clear();
             if (sslOutputBuffer != null) {

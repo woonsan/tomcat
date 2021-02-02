@@ -103,7 +103,52 @@
   They eventually become mixed with the numbered issues (i.e., numbered
   issues do not "pop up" wrt. others).
 -->
-<section name="Tomcat 10.0.1 (markt)" rtext="in development">
+<section name="Tomcat 10.0.3 (markt)" rtext="in development">
+  <subsection name="Catalina">
+    <changelog>
+      <fix>
+        Revert an incorrect fix for a potential resource leak that broke
+        deployment via the Ant deploy task. (markt)
+      </fix>
+    </changelog>
+  </subsection>
+  <subsection name="Coyote">
+    <changelog>
+      <add>
+        <bug>64943</bug>: Add support for Unix Domain Sockets to
+        <code>org.apache.coyote.http11.Http11AprProtocol</code>. Depends on
+        <code>tomcat-native</code> 1.2.26 and up. (minfrin)
+      </add>
+      <fix>
+        <bug>65118</bug>: Fix a potential <code>NullPointerException</code> when
+        pruning closed HTTP/2 streams from the connection. (markt)
+      </fix>
+    </changelog>
+  </subsection>
+</section>
+<section name="Tomcat 10.0.2 (markt)" rtext="2021-02-02">
+  <subsection name="Catalina">
+    <changelog>
+      <fix>
+        <bug>65106</bug>: Fix the ConfigFileLoader handling of file URIs when
+        running under a security manager on some JREs. (markt)
+      </fix>
+    </changelog>
+  </subsection>
+  <subsection name="Coyote">
+    <changelog>
+      <fix>
+        Ensure that SNI provided host names are matched to SSL virtual host
+        configurations in a case insensitive manner. (markt)
+      </fix>
+      <fix>
+        <bug>65111</bug>: Free direct memory buffers in the APR connector.
+        (remm)
+      </fix>
+    </changelog>
+  </subsection>
+</section>
+<section name="Tomcat 10.0.1 (markt)" rtext="not released">
   <subsection name="Catalina">
     <changelog>
       <fix>
@@ -156,6 +201,10 @@
   <subsection name="Coyote">
     <changelog>
       <fix>
+        Additional fix for <bug>64830</bug> to address an edge case that could
+        trigger request corruption with h2c connections. (markt)
+      </fix>
+      <fix>
         <bug>64974</bug>: Improve handling of pipelined HTTP requests in
         combination with the Servlet non-blocking IO API. It was possible that
         some requests could get dropped. (markt)
@@ -167,21 +216,57 @@
         <code>unixDomainSocketPathPermissions</code> attributes.
         Based on a PR submitted by Graham Leggett. (remm)
       </add>
+      <fix>
+        <bug>65001</bug>: Fix error handling for exceptions thrown from calls
+        to <code>ReadListener</code> and <code>WriteListener</code>. (markt)
+      </fix>
+      <fix>
+        Avoid possible infinite loop in <code>OpenSSLEngine.unwrap</code>
+        when the destination buffers state is changed concurrently. (remm)
+      </fix>
     </changelog>
   </subsection>
   <subsection name="Jasper">
     <changelog>
+      <add>
+        Add a new <code>StringInterpreter</code> interface that allows
+        applications to provide customised string attribute value to type
+        conversion within JSPs. This allows applications to provide a conversion
+        implementation that is optimised for the application. (markt)
+      </add>
       <fix>
         <bug>64965</bug>: <code>JspContextWrapper.findAttribute</code> should
         ignore expired sessions rather than throw an
         <code>IllegalStateException</code>. (remm)
+      </fix>
+      <update>
+        Update to the Eclipse JDT compiler 4.18. (markt)
+      </update>
+    </changelog>
+  </subsection>
+  <subsection name="Web applications">
+    <changelog>
+      <fix>
+        <bug>65007</bug>: Clarify that the commands shown in the TLS
+        documentation for importing a signed TLS certificate from a certificate
+        authority are typical examples that may need to be adjusted in some
+        cases. (markt)
+      </fix>
+    </changelog>
+  </subsection>
+  <subsection name="Tribes">
+    <changelog>
+      <fix>
+        Work around DNS caching for the DNS provider of the cloud membership.
+        (jfclere)
       </fix>
     </changelog>
   </subsection>
   <subsection name="Other">
     <changelog>
       <add>
-        Improvements to Chinese translations. Provided by leeyazhou. (markt)
+        Improvements to Chinese translations. Provided by leeyazhou and Yi Shen.
+        (markt)
       </add>
       <add>
         Improvements to French translations. (remm)
@@ -189,6 +274,40 @@
       <add>
         Improvements to Korean translations. (woonsan)
       </add>
+      <update>
+        Update the packaged version of the Tomcat Native Library to 1.2.26.
+        (markt)
+      </update>
+      <add>
+        Update the internal fork of Apache Commons Pool to 2.9.1-SNAPSHOT
+        (2021-01-15). (markt)
+      </add>
+      <add>
+        Update the internal fork of Apache Commons DBCP to 2.9.0-SNAPSHOT
+        (2021-01-15). (markt)
+      </add>
+      <update>
+        Migrate to new code signing service. (markt)
+      </update>
+      <scode>
+        Use <code>java.nio.file.Path</code> to test for one directory being a
+        sub-directory of another in a consistent way. (markt)
+      </scode>
+      <update>
+        Update to Commons Daemon 1.2.4. (markt)
+      </update>
+      <add>
+        Improvements to Brazilian Portuguese translations. Provided by Rual
+        Zaninetti Rosa and Lucas. (markt)
+      </add>
+      <add>
+        Improvements to Russian translations. Provided by Polina and Azat.
+        (markt)
+      </add>
+      <update>
+        Update the NSIS Installer used to build the Windows installer to version
+        3.06.1. (kkolinko)
+      </update>
     </changelog>
   </subsection>
 </section>
