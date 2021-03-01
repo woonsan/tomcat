@@ -149,9 +149,10 @@ public class CoyoteAdapter implements Adapter {
                 success = false;
                 Throwable t = (Throwable)req.getAttribute(RequestDispatcher.ERROR_EXCEPTION);
                 req.getAttributes().remove(RequestDispatcher.ERROR_EXCEPTION);
+                Context context = request.getContext();
                 ClassLoader oldCL = null;
                 try {
-                    oldCL = request.getContext().bind(false, null);
+                    oldCL = context.bind(false, null);
                     if (req.getReadListener() != null) {
                         req.getReadListener().onError(t);
                     }
@@ -159,7 +160,7 @@ public class CoyoteAdapter implements Adapter {
                         res.getWriteListener().onError(t);
                     }
                 } finally {
-                    request.getContext().unbind(false, oldCL);
+                    context.unbind(false, oldCL);
                 }
                 if (t != null) {
                     asyncConImpl.setErrorState(t, true);
@@ -171,13 +172,18 @@ public class CoyoteAdapter implements Adapter {
                 WriteListener writeListener = res.getWriteListener();
                 ReadListener readListener = req.getReadListener();
                 if (writeListener != null && status == SocketEvent.OPEN_WRITE) {
+                    Context context = request.getContext();
                     ClassLoader oldCL = null;
                     try {
-                        oldCL = request.getContext().bind(false, null);
+                        oldCL = context.bind(false, null);
                         res.onWritePossible();
                         if (request.isFinished() && req.sendAllDataReadEvent() &&
                                 readListener != null) {
                             readListener.onAllDataRead();
+                        }
+                        // User code may have swallowed an IOException
+                        if (response.getCoyoteResponse().isExceptionPresent()) {
+                            throw response.getCoyoteResponse().getErrorException();
                         }
                     } catch (Throwable t) {
                         ExceptionUtils.handleThrowable(t);
@@ -188,13 +194,15 @@ public class CoyoteAdapter implements Adapter {
                         // https://bz.apache.org/bugzilla/show_bug.cgi?id=65001
                         res.action(ActionCode.CLOSE_NOW, t);
                         writeListener.onError(t);
+                        asyncConImpl.setErrorState(t, true);
                     } finally {
-                        request.getContext().unbind(false, oldCL);
+                        context.unbind(false, oldCL);
                     }
                 } else if (readListener != null && status == SocketEvent.OPEN_READ) {
+                    Context context = request.getContext();
                     ClassLoader oldCL = null;
                     try {
-                        oldCL = request.getContext().bind(false, null);
+                        oldCL = context.bind(false, null);
                         // If data is being read on a non-container thread a
                         // dispatch with status OPEN_READ will be used to get
                         // execution back on a container thread for the
@@ -206,6 +214,10 @@ public class CoyoteAdapter implements Adapter {
                         if (request.isFinished() && req.sendAllDataReadEvent()) {
                             readListener.onAllDataRead();
                         }
+                        // User code may have swallowed an IOException
+                        if (request.getCoyoteRequest().isExceptionPresent()) {
+                            throw request.getCoyoteRequest().getErrorException();
+                        }
                     } catch (Throwable t) {
                         ExceptionUtils.handleThrowable(t);
                         // Need to trigger the call to AbstractProcessor.setErrorState()
@@ -215,8 +227,9 @@ public class CoyoteAdapter implements Adapter {
                         // https://bz.apache.org/bugzilla/show_bug.cgi?id=65001
                         res.action(ActionCode.CLOSE_NOW, t);
                         readListener.onError(t);
+                        asyncConImpl.setErrorState(t, true);
                     } finally {
-                        request.getContext().unbind(false, oldCL);
+                        context.unbind(false, oldCL);
                     }
                 }
             }

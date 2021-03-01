@@ -110,6 +110,48 @@
         Revert an incorrect fix for a potential resource leak that broke
         deployment via the Ant deploy task. (markt)
       </fix>
+      <fix>
+        Improve error message for failed ConfigurationSource lookups in the
+        Catalina implementation. (remm)
+      </fix>
+      <fix>
+        <bug>65135</bug>: Rename Context method
+        <code>isParallelAnnotationScanning</code> to
+        <code>getParallelAnnotationScanning</code> for consistency and ease
+        of use in JMX descriptors. (remm)
+      </fix>
+      <update>
+        Allow the loader to directly use the Tomcat Migration Tool for JakartaEE
+        as a <code>ClassFileTransformer</code> using the
+        <code>jakartaConverter</code> attribute. This only supports javax to
+        jakarta conversion for classes, not for classloader resources or
+        static files. (remm)
+      </update>
+      <add>
+        Integrate the Tomcat Migration Tool for JakartaEE at deployment time.
+        Java EE web applications placed in the <code>webapps-javaee</code>
+        directory will be migrated to Jakarta EE 9 and placed in the
+        <code>webapps</code> where it will be deployed (or not) based on the
+        current settings for automatic deployment. (markt)
+      </add>
+      <fix>
+        <bug>64938</bug>: Align the behaviour when <code>null</code> is passed
+        to the <code>ServletResponse</code> methods
+        <code>setCharacterEncoding()</code>, <code>setContentType()</code> and
+        <code>setLocale()</code> with the recent clarification from the Jakarta
+        Servlet project of the expected behaviour in these cases. (markt)
+      </fix>
+      <fix>
+        Ensure that the <code>AsyncListener.onError()</code> event is triggered
+        when a I/O error occurs during non-blocking I/O. There were some cases
+        discovered where this was not happening. (markt)
+      </fix>
+      <add>
+        Make the non-blocking I/O error handling more robust by handling the
+        case where the application code swallows an <code>IOException</code> in
+        <code>WriteListener.onWritePossible()</code> and
+        <code>ReadListener.onDataAvailable()</code>. (markt)
+      </add>
     </changelog>
   </subsection>
   <subsection name="Coyote">
@@ -123,6 +165,60 @@
         <bug>65118</bug>: Fix a potential <code>NullPointerException</code> when
         pruning closed HTTP/2 streams from the connection. (markt)
       </fix>
+      <fix>
+        Avoid NullPointerException when a secure channel is closed before the
+        SSL engine was initialized. (remm)
+      </fix>
+      <fix>
+        Ensure that the <code>ReadListener</code>'s <code>onError()</code> event
+        is triggered if the client closes the connection before sending the
+        entire request body and the server is ready the request body using
+        non-blocking I/O. (markt)
+      </fix>
+      <fix>
+        <bug>65137</bug>: Ensure that a response is not corrupted as well as
+        incomplete if the connection is closed before the response is fully
+        written due to a write timeout. (markt)
+      </fix>
+      <fix>
+        Related to bug <bug>65131</bug>, make sure all errors from OpenSSL are
+        fully cleared, as there could be more than one error present after
+        an operation (confirmed in the OpenSSL API documentation). (remm)
+      </fix>
+    </changelog>
+  </subsection>
+  <subsection name="Web applications">
+    <changelog>
+      <fix>
+        Remove the restriction that prevented the Manager web application
+        deploying different web applications in parallel. (markt)
+      </fix>
+    </changelog>
+  </subsection>
+  <subsection name="Other">
+    <changelog>
+      <update>
+        Update the OWB module to Apache OpenWebBeans 2.0.21. (remm)
+      </update>
+      <update>
+        Update the CXF module to Apache CXF 3.4.2. (remm)
+      </update>
+      <add>
+        Improvements to French translations. (remm)
+      </add>
+      <add>
+        Improvements to Korean translations. (woonsan)
+      </add>
+      <add>
+        Improvements to Brazilian Portuguese translations. Provided by Thiago.
+        (mark)
+      </add>
+      <add>
+        Improvements to Russian translations. Provided by Azat. (mark)
+      </add>
+      <add>
+        Improvements to Chinese translations. Provided by shawn. (mark)
+      </add>
     </changelog>
   </subsection>
 </section>
